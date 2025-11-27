@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>20초 한국철도역 이름 대기 게임</title>
+    <title>🚂 한국철도역 이름 대기 게임 (관리자 + 랭킹)</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script> 
     <style>
         /* CSS: 스타일링 */
@@ -26,7 +26,7 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             text-align: center;
             width: 90%;
-            max-width: 600px; /* 랭킹 영역 추가로 너비 확장 */
+            max-width: 600px;
         }
 
         h1 {
@@ -53,14 +53,16 @@
             min-height: 20px;
         }
 
-        #stationInput {
+        #stationInput, #timeLimitInput, #nicknameInput {
             padding: 10px;
             width: 80%;
+            max-width: 300px; 
             margin-bottom: 15px;
             border: 2px solid #ccc;
             border-radius: 5px;
             font-size: 1.1em;
             text-align: center;
+            box-sizing: border-box;
         }
 
         button {
@@ -113,9 +115,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>🚂 20초 한국철도역 이름 대기 게임</h1>
+        <h1>🚂 한국철도역 이름 대기 게임</h1>
         <p>Google 로그인 후 닉네임을 설정하고 랭킹에 도전하세요!</p>
-        <p>반영된 역은 수도권1호선,대경선,동해선,경강선입니다.</p>
 
         <div id="user-info">로그인해주세요.</div>
 
@@ -136,18 +137,20 @@
         </div>
 
         <div id="nicknameSetup" style="display: none; margin-bottom: 20px;">
-    <p>게임을 시작하기 전에 사용할 **닉네임**을 설정해주세요.</p>
-    <input type="text" id="nicknameInput" placeholder="닉네임을 입력하세요" maxlength="10" style="padding: 8px; text-align: center;">
-    <button id="saveNicknameButton">닉네임 저장</button>
-</div>
-
-<div id="timeLimitSetting" style="margin-top: 15px; display: none;">
-     <label for="timeLimitInput" style="font-weight: bold;">제한 시간 (초):</label>
-     <input type="number" id="timeLimitInput" value="60" min="10" max="300" style="width: 80px;">
-</div>
-<button id="startButton" style="display: none;">게임 시작!</button> <div id="loginPrompt" style="display: block; font-size: 1.2em; color: #dc3545;">
-    Google 로그인 및 닉네임 설정이 필요합니다.
-</div>
+            <p>게임을 시작하기 전에 사용할 **닉네임**을 설정해주세요.</p>
+            <input type="text" id="nicknameInput" placeholder="닉네임을 입력하세요" maxlength="10">
+            <button id="saveNicknameButton">닉네임 저장</button>
+        </div>
+        
+        <div id="timeLimitSetting" style="margin-top: 15px; display: none;">
+             <label for="timeLimitInput" style="font-weight: bold;">제한 시간 (초):</label>
+             <input type="number" id="timeLimitInput" value="20" min="10" max="300" style="width: 80px;">
+        </div>
+        
+        <button id="startButton" style="display: none;">게임 시작!</button>
+        <div id="loginPrompt" style="display: block; font-size: 1.2em; color: #dc3545;">
+            Google 로그인 및 닉네임 설정이 필요합니다.
+        </div>
 
         <div id="gameArea">
             <div id="timer">20</div>
@@ -160,8 +163,8 @@
 
         <div id="rankingArea">
             <h2>🏆 최고 기록 (로컬 랭킹) 🏆</h2>
-            <button id="clearRankingButton" style="background-color: #dc3545; font-size: 1em; padding: 5px 10px; margin-bottom: 10px;">
-                랭킹 기록 삭제
+            <button id="clearRankingButton" style="background-color: #dc3545; font-size: 1em; padding: 5px 10px; margin-bottom: 10px; display: none;"> 
+                랭킹 기록 삭제 (관리자 전용)
             </button>
             <ul id="rankingList">
                 <li>데이터를 불러오는 중...</li>
@@ -189,13 +192,17 @@
             // 더 많은 역 추가 가능
         ];
 
+        // ⚠️⚠️⚠️ 여기를 관리자로 지정할 본인의 Google 이메일 주소로 변경하세요! ⚠️⚠️⚠️
+        const noseonjohayo@gmail.com = "your.admin.email@gmail.com"; 
+
         let score = 0;
-        let timeLeft = 20;
+        let timeLeft = 20; // 기본 시간 20초로 초기화
         let timerId;
         let usedStations = new Set();
         let isGameRunning = false;
         let isLoggedIn = false;
-        let userNickname = ''; // 사용자 설정 닉네임
+        let userNickname = ''; 
+        let userEmail = ''; // 관리자 확인용 이메일 저장
 
         // HTML 요소 가져오기
         const timerDisplay = document.getElementById('timer');
@@ -211,6 +218,9 @@
         const nicknameInput = document.getElementById('nicknameInput');
         const saveNicknameButton = document.getElementById('saveNicknameButton');
         const rankingList = document.getElementById('rankingList');
+        const timeLimitSetting = document.getElementById('timeLimitSetting'); 
+        const timeLimitInput = document.getElementById('timeLimitInput');     
+        const clearRankingButton = document.getElementById('clearRankingButton');
 
         // --- 2. UTF-8 안전 디코딩 함수 (한글 닉네임 깨짐 방지) ---
         function decodeJwt(encoded) {
@@ -222,8 +232,17 @@
             );
             return JSON.parse(jsonString);
         }
+        
+        // --- 3. 관리자 상태 확인 함수 ---
+        function checkAdminStatus() {
+            if (userEmail === ADMIN_EMAIL_ADDRESS) {
+                clearRankingButton.style.display = 'block'; 
+            } else {
+                clearRankingButton.style.display = 'none';
+            }
+        }
 
-        // --- 3. Google 로그인 콜백 함수 ---
+        // --- 4. Google 로그인 콜백 함수 ---
         function handleCredentialResponse(response) {
             const credential = response.credential;
             const encodedPayload = credential.split('.')[1];
@@ -231,17 +250,18 @@
             try {
                 const payload = decodeJwt(encodedPayload); 
                 isLoggedIn = true; 
-
-                // 화면 업데이트: 로그인 성공 메시지 표시
+                userEmail = payload.email; // 이메일 저장
+                
                 userInfoDisplay.textContent = `${payload.name}님, Google 로그인 성공! 닉네임을 설정하세요.`;
                 document.querySelector('.g_id_signin').style.display = 'none'; 
                 loginPrompt.style.display = 'none';
 
-                // 닉네임 설정 창 표시
                 startButton.style.display = 'none'; 
                 nicknameSetup.style.display = 'block';
-                nicknameInput.value = payload.given_name || payload.name; // Google 이름으로 기본값 채우기
+                nicknameInput.value = payload.given_name || payload.name;
                 nicknameInput.focus();
+                
+                checkAdminStatus(); // 로그인 시 관리자 버튼 상태 확인
 
             } catch (e) {
                 console.error("JWT 디코딩 오류:", e);
@@ -249,32 +269,26 @@
             }
         }
 
-// ... (기존 변수 및 요소 정의 코드) ...
+        // --- 5. 닉네임 저장 함수 ---
+        function saveNickname() {
+            const nick = nicknameInput.value.trim();
+            if (nick.length < 2) {
+                alert('닉네임은 2글자 이상 입력해주세요.');
+                return;
+            }
 
-// --- 4. 닉네임 저장 함수 ---
-function saveNickname() {
-    const nick = nicknameInput.value.trim();
-    if (nick.length < 2) {
-        alert('닉네임은 2글자 이상 입력해주세요.');
-        return;
-    }
+            userNickname = nick; 
+            
+            nicknameSetup.style.display = 'none'; 
+            userInfoDisplay.textContent = `현재 사용자: ${userNickname}님`;
+            
+            // 닉네임 설정 완료 후 시간 설정과 시작 버튼 표시
+            timeLimitSetting.style.display = 'block'; 
+            startButton.style.display = 'block'; 
+            startButton.focus();
+        }
 
-    userNickname = nick; 
-    
-    // 화면 정리 및 게임 시작 준비
-    nicknameSetup.style.display = 'none'; // 닉네임 입력창 숨김
-    userInfoDisplay.textContent = `현재 사용자: ${userNickname}님`;
-    
-    // ⚠️ 닉네임 설정 성공 후, '제한 시간 설정 창'과 '게임 시작 버튼'을 보이게 합니다.
-    timeLimitSetting.style.display = 'block'; 
-    startButton.style.display = 'block'; 
-    
-    startButton.focus();
-}
-
-// ... (나머지 랭킹, 게임 로직은 동일) ...
-
-        // --- 5. 랭킹 로직 ---
+        // --- 6. 랭킹 로직 ---
         function loadRanking() {
             const rankingData = localStorage.getItem('railroadRanking');
             return rankingData ? JSON.parse(rankingData) : [];
@@ -286,8 +300,8 @@ function saveNickname() {
 
         function displayRanking() {
             const ranking = loadRanking();
-            ranking.sort((a, b) => b.score - a.score); // 점수 내림차순 정렬
-            const topRanking = ranking.slice(0, 10); // 상위 10개
+            ranking.sort((a, b) => b.score - a.score); 
+            const topRanking = ranking.slice(0, 10); 
 
             rankingList.innerHTML = ''; 
 
@@ -302,8 +316,24 @@ function saveNickname() {
                 rankingList.appendChild(li);
             });
         }
+        
+        // --- 7. 관리자 전용 랭킹 초기화 함수 ---
+        function clearRanking() {
+            if (userEmail !== ADMIN_EMAIL_ADDRESS) {
+                alert("이 기능은 사이트 창설자(관리자)만 사용할 수 있습니다.");
+                return; 
+            }
+            
+            const confirmDelete = confirm("관리자님, 정말로 저장된 모든 랭킹 기록을 삭제하시겠습니까?");
+            
+            if (confirmDelete) {
+                localStorage.removeItem('railroadRanking'); 
+                displayRanking();
+                alert("모든 랭킹 기록이 삭제되었습니다.");
+            }
+        }
 
-        // --- 6. 게임 로직 ---
+        // --- 8. 게임 로직 ---
         function countdown() {
             if (!isGameRunning) return;
 
@@ -321,15 +351,21 @@ function saveNickname() {
                 return;
             }
 
+            const newTimeLimit = parseInt(timeLimitInput.value);
+            if (isNaN(newTimeLimit) || newTimeLimit < 10 || newTimeLimit > 300) {
+                alert('제한 시간은 10초에서 300초 사이의 숫자로 입력해주세요.');
+                return;
+            }
+            
             if (isGameRunning) return;
             
             score = 0;
-            timeLeft = 20;
+            timeLeft = newTimeLimit; // 설정된 시간으로 시작!
             usedStations.clear();
             isGameRunning = true;
 
             scoreDisplay.textContent = `점수: 0`;
-            timerDisplay.textContent = '20';
+            timerDisplay.textContent = timeLeft;
             messageDisplay.textContent = '';
             stationInput.value = '';
             stationInput.disabled = false;
@@ -337,6 +373,8 @@ function saveNickname() {
             
             startButton.style.display = 'none';
             restartButton.style.display = 'none';
+            timeLimitSetting.style.display = 'none'; 
+            clearRankingButton.style.display = 'none'; // 게임 중에는 관리자 버튼 숨김
             gameArea.style.display = 'block';
 
             timerId = setInterval(countdown, 1000);
@@ -347,7 +385,6 @@ function saveNickname() {
             isGameRunning = false;
             stationInput.disabled = true;
 
-            // 랭킹 저장 및 업데이트
             const currentRanking = loadRanking();
             currentRanking.push({
                 nickname: userNickname,
@@ -359,6 +396,8 @@ function saveNickname() {
 
             messageDisplay.innerHTML = `**${userNickname}님! 게임 종료!** 최종 점수는 **${score}점** 입니다. 🎉`;
             restartButton.style.display = 'block';
+            timeLimitSetting.style.display = 'block'; 
+            checkAdminStatus(); // 게임 종료 후 관리자 버튼 상태 재확인
         }
 
         function checkInput(event) {
@@ -385,150 +424,18 @@ function saveNickname() {
                 }
             }
         }
-// JavaScript 코드: 요소 가져오기 섹션에 추가
-const clearRankingButton = document.getElementById('clearRankingButton');
 
-// 랭킹 초기화 함수
-function clearRanking() {
-    // 사용자에게 정말 삭제할 것인지 물어봅니다.
-    const confirmDelete = confirm("정말로 저장된 모든 랭킹 기록을 삭제하시겠습니까?");
-    
-    if (confirmDelete) {
-        // 로컬 저장소에서 'railroadRanking' 키를 가진 데이터를 삭제합니다.
-        localStorage.removeItem('railroadRanking'); 
-        
-        // 화면의 랭킹 목록을 다시 불러와서 비워진 상태를 표시합니다.
-        displayRanking();
-        alert("모든 랭킹 기록이 삭제되었습니다.");
-    }
-}
-
-        // --- 7. 이벤트 리스너 등록 및 초기화 ---
+        // --- 9. 이벤트 리스너 등록 및 초기화 ---
         startButton.addEventListener('click', startGame);
         restartButton.addEventListener('click', startGame);
         stationInput.addEventListener('keydown', checkInput);
         saveNicknameButton.addEventListener('click', saveNickname);
+        clearRankingButton.addEventListener('click', clearRanking);
 
         window.onload = () => {
-             displayRanking(); // 초기 랭킹 표시
+             displayRanking(); 
              userInfoDisplay.textContent = '게임을 시작하려면 Google 로그인이 필요합니다.';
-        };
-
-// JavaScript 코드 영역
-
-// --- 전역 변수 설정에 관리자 이메일 주소 추가 ---
-const stations = [
-    // ... 기존 역 이름 목록 ...
-];
-
-// ⚠️⚠️⚠️ 여기를 본인의 Google 이메일 주소로 변경하세요! ⚠️⚠️⚠️
-const noseonjohayo@gmail.com = "your.admin.email@gmail.com"; 
-
-let score = 0;
-let timeLeft = 60;
-let timerId;
-let usedStations = new Set();
-let isGameRunning = false;
-let isLoggedIn = false;
-let userNickname = '';
-let userEmail = ''; // 사용자의 이메일을 저장할 변수 추가
-
-// HTML 요소 가져오기 (clearRankingButton도 이미 있다고 가정)
-// ... 기존 HTML 요소 정의 ...
-const clearRankingButton = document.getElementById('clearRankingButton');
-
-
-// --- 2. UTF-8 안전 디코딩 함수 (기존과 동일) ---
-function decodeJwt(encoded) {
-    // ... (기존 decodeJwt 함수 내용) ...
-    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonString = decodeURIComponent(
-        atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join('')
-    );
-    return JSON.parse(jsonString);
-}
-
-
-// --- 3. Google 로그인 콜백 함수 (이메일 저장 및 관리자 확인 로직 추가) ---
-function handleCredentialResponse(response) {
-    const credential = response.credential;
-    const encodedPayload = credential.split('.')[1];
-    
-    try {
-        const payload = decodeJwt(encodedPayload); 
-        isLoggedIn = true; 
-        
-        userEmail = payload.email; // 획득한 이메일 주소 저장!
-
-        userInfoDisplay.textContent = `${payload.name}님, Google 로그인 성공! 닉네임을 설정하세요.`;
-        document.querySelector('.g_id_signin').style.display = 'none'; 
-        loginPrompt.style.display = 'none';
-
-        startButton.style.display = 'none'; 
-        nicknameSetup.style.display = 'block';
-        nicknameInput.value = payload.given_name || payload.name;
-        nicknameInput.focus();
-        
-        // ** 관리자 버튼 표시 여부 업데이트 **
-        checkAdminStatus(); 
-
-    } catch (e) {
-        console.error("JWT 디코딩 오류:", e);
-        userInfoDisplay.textContent = "로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.";
-    }
-}
-
-
-// --- 4. 관리자 상태 확인 함수 (새로 추가) ---
-function checkAdminStatus() {
-    // 저장된 이메일이 관리자 이메일과 일치하는지 확인
-    if (userEmail === ADMIN_EMAIL_ADDRESS) {
-        // 일치하면 버튼을 보이게 함
-        clearRankingButton.style.display = 'block'; 
-        console.log("관리자 로그인 성공: 랭킹 삭제 버튼 활성화");
-    } else {
-        // 일치하지 않으면 버튼을 숨김
-        clearRankingButton.style.display = 'none';
-    }
-}
-
-
-// --- 5. 랭킹 초기화 함수 (기존 로직 + 관리자 체크 강화) ---
-function clearRanking() {
-    // ⚠️ 관리자 이메일이 일치하지 않으면 경고 후 바로 종료
-    if (userEmail !== ADMIN_EMAIL_ADDRESS) {
-        alert("이 기능은 사이트 창설자(관리자)만 사용할 수 있습니다.");
-        return; 
-    }
-    
-    const confirmDelete = confirm("관리자님, 정말로 저장된 모든 랭킹 기록을 삭제하시겠습니까?");
-    
-    if (confirmDelete) {
-        localStorage.removeItem('railroadRanking'); 
-        displayRanking();
-        alert("모든 랭킹 기록이 삭제되었습니다.");
-    }
-}
-
-// --- 6. 이벤트 리스너 등록에 clearRankingButton 추가 ---
-// ... (기존 이벤트 리스너들) ...
-clearRankingButton.addEventListener('click', clearRanking);
-
-// --- 7. 초기화 시 버튼 상태 설정 ---
-window.onload = () => {
-     displayRanking();
-     userInfoDisplay.textContent = '게임을 시작하려면 Google 로그인이 필요합니다.';
-     clearRankingButton.style.display = 'none'; // 초기에는 버튼을 숨김
-};
-
-    </script>
-</body>
-</html>
-             userInfoDisplay.textContent = '로그인해주세요.';
-             loginPrompt.style.display = 'block';
-             startButton.style.display = 'none';
+             clearRankingButton.style.display = 'none'; // 초기 버튼 숨김
         };
 
     </script>
