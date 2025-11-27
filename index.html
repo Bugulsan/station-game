@@ -1,0 +1,384 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1분 한국철도역 이름 대기 게임 (최종)</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script> 
+    <style>
+        /* CSS: 스타일링 */
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 600px; /* 랭킹 영역 추가로 너비 확장 */
+        }
+
+        h1 {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+        
+        #timer {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 15px;
+        }
+
+        #score {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #28a745;
+        }
+
+        #message, #user-info {
+            margin-bottom: 15px;
+            font-weight: bold;
+            min-height: 20px;
+        }
+
+        #stationInput {
+            padding: 10px;
+            width: 80%;
+            margin-bottom: 15px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            font-size: 1.1em;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #007bff;
+            transition: background-color 0.3s;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        #gameArea {
+            display: none;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+
+        #rankingArea {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #007bff;
+        }
+
+        #rankingList {
+            list-style: none;
+            padding: 0;
+            text-align: left;
+        }
+
+        #rankingList li {
+            background-color: #f0f8ff;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            font-weight: 500;
+            border-left: 5px solid #007bff;
+        }
+        #rankingList li:nth-child(1) { background-color: #ffeb3b; border-left: 5px solid #ffa000; }
+        #rankingList li:nth-child(2) { background-color: #e0e0e0; border-left: 5px solid #9e9e9e; }
+        #rankingList li:nth-child(3) { background-color: #ffccbc; border-left: 5px solid #ff5722; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚂 1분 한국철도역 이름 대기 게임</h1>
+        <p>Google 로그인 후 닉네임을 설정하고 랭킹에 도전하세요!</p>
+
+        <div id="user-info">로그인해주세요.</div>
+
+        <div id="g_id_onload"
+             data-client_id="9199118002-jqjoj5mn6bevt5jc0ovtohr9svmeo092.apps.googleusercontent.com" 
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false"
+             data-ux_mode="popup"
+             data-login_uri=""
+        ></div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
+        </div>
+
+        <div id="nicknameSetup" style="display: none; margin-bottom: 20px;">
+            <p>게임을 시작하기 전에 사용할 **닉네임**을 설정해주세요.</p>
+            <input type="text" id="nicknameInput" placeholder="닉네임을 입력하세요" maxlength="10" style="padding: 8px; text-align: center;">
+            <button id="saveNicknameButton">닉네임 저장</button>
+        </div>
+        
+        <button id="startButton" style="display: none;">게임 시작!</button>
+        <div id="loginPrompt" style="display: block; font-size: 1.2em; color: #dc3545;">
+            Google 로그인 및 닉네임 설정이 필요합니다.
+        </div>
+
+        <div id="gameArea">
+            <div id="timer">60</div>
+            <div id="score">점수: 0</div>
+            <div id="message"></div>
+            <input type="text" id="stationInput" placeholder="역 이름을 입력하세요 (예: 서울)">
+        </div>
+
+        <button id="restartButton" style="display: none;">다시 시작</button>
+
+        <div id="rankingArea">
+            <h2>🏆 최고 기록 (로컬 랭킹) 🏆</h2>
+            <ul id="rankingList">
+                <li>데이터를 불러오는 중...</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 전역 변수 설정 ---
+        const stations = [
+            '서울', '부산', '대전', '대구', '광주', '인천', '수원', '천안', '동대구', 
+            '신경주', '울산', '강릉', '포항', '익산', '순천', '여수엑스포', '목포', '용산', 
+            '청량리', '오송', '평택', '구미', '김천', '영등포', '노량진', '망우', '춘천' 
+            // 더 많은 역 추가 가능
+        ];
+
+        let score = 0;
+        let timeLeft = 60;
+        let timerId;
+        let usedStations = new Set();
+        let isGameRunning = false;
+        let isLoggedIn = false;
+        let userNickname = ''; // 사용자 설정 닉네임
+
+        // HTML 요소 가져오기
+        const timerDisplay = document.getElementById('timer');
+        const scoreDisplay = document.getElementById('score');
+        const messageDisplay = document.getElementById('message');
+        const stationInput = document.getElementById('stationInput');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const gameArea = document.getElementById('gameArea');
+        const userInfoDisplay = document.getElementById('user-info');
+        const loginPrompt = document.getElementById('loginPrompt');
+        const nicknameSetup = document.getElementById('nicknameSetup');
+        const nicknameInput = document.getElementById('nicknameInput');
+        const saveNicknameButton = document.getElementById('saveNicknameButton');
+        const rankingList = document.getElementById('rankingList');
+
+        // --- 2. UTF-8 안전 디코딩 함수 (한글 닉네임 깨짐 방지) ---
+        function decodeJwt(encoded) {
+            let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonString = decodeURIComponent(
+                atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join('')
+            );
+            return JSON.parse(jsonString);
+        }
+
+        // --- 3. Google 로그인 콜백 함수 ---
+        function handleCredentialResponse(response) {
+            const credential = response.credential;
+            const encodedPayload = credential.split('.')[1];
+            
+            try {
+                const payload = decodeJwt(encodedPayload); 
+                isLoggedIn = true; 
+
+                // 화면 업데이트: 로그인 성공 메시지 표시
+                userInfoDisplay.textContent = `${payload.name}님, Google 로그인 성공! 닉네임을 설정하세요.`;
+                document.querySelector('.g_id_signin').style.display = 'none'; 
+                loginPrompt.style.display = 'none';
+
+                // 닉네임 설정 창 표시
+                startButton.style.display = 'none'; 
+                nicknameSetup.style.display = 'block';
+                nicknameInput.value = payload.given_name || payload.name; // Google 이름으로 기본값 채우기
+                nicknameInput.focus();
+
+            } catch (e) {
+                console.error("JWT 디코딩 오류:", e);
+                userInfoDisplay.textContent = "로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.";
+            }
+        }
+
+        // --- 4. 닉네임 저장 함수 ---
+        function saveNickname() {
+            const nick = nicknameInput.value.trim();
+            if (nick.length < 2) {
+                alert('닉네임은 2글자 이상 입력해주세요.');
+                return;
+            }
+
+            userNickname = nick; 
+            
+            // 화면 정리 및 게임 시작 준비
+            nicknameSetup.style.display = 'none'; 
+            userInfoDisplay.textContent = `현재 사용자: ${userNickname}님`;
+            startButton.style.display = 'block'; 
+            startButton.focus();
+        }
+
+        // --- 5. 랭킹 로직 ---
+        function loadRanking() {
+            const rankingData = localStorage.getItem('railroadRanking');
+            return rankingData ? JSON.parse(rankingData) : [];
+        }
+
+        function saveRanking(ranking) {
+            localStorage.setItem('railroadRanking', JSON.stringify(ranking));
+        }
+
+        function displayRanking() {
+            const ranking = loadRanking();
+            ranking.sort((a, b) => b.score - a.score); // 점수 내림차순 정렬
+            const topRanking = ranking.slice(0, 10); // 상위 10개
+
+            rankingList.innerHTML = ''; 
+
+            if (topRanking.length === 0) {
+                rankingList.innerHTML = '<li>아직 기록이 없습니다.</li>';
+                return;
+            }
+
+            topRanking.forEach((record, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}위: ${record.nickname} - ${record.score}점`;
+                rankingList.appendChild(li);
+            });
+        }
+
+        // --- 6. 게임 로직 ---
+        function countdown() {
+            if (!isGameRunning) return;
+
+            timeLeft--;
+            timerDisplay.textContent = timeLeft;
+
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        function startGame() {
+            if (!isLoggedIn || !userNickname) {
+                alert('게임을 시작하려면 로그인 및 닉네임 설정이 필요합니다.');
+                return;
+            }
+
+            if (isGameRunning) return;
+            
+            score = 0;
+            timeLeft = 60;
+            usedStations.clear();
+            isGameRunning = true;
+
+            scoreDisplay.textContent = `점수: 0`;
+            timerDisplay.textContent = '60';
+            messageDisplay.textContent = '';
+            stationInput.value = '';
+            stationInput.disabled = false;
+            stationInput.focus();
+            
+            startButton.style.display = 'none';
+            restartButton.style.display = 'none';
+            gameArea.style.display = 'block';
+
+            timerId = setInterval(countdown, 1000);
+        }
+
+        function endGame() {
+            clearInterval(timerId);
+            isGameRunning = false;
+            stationInput.disabled = true;
+
+            // 랭킹 저장 및 업데이트
+            const currentRanking = loadRanking();
+            currentRanking.push({
+                nickname: userNickname,
+                score: score,
+                date: new Date().toISOString()
+            });
+            saveRanking(currentRanking);
+            displayRanking(); 
+
+            messageDisplay.innerHTML = `**${userNickname}님! 게임 종료!** 최종 점수는 **${score}점** 입니다. 🎉`;
+            restartButton.style.display = 'block';
+        }
+
+        function checkInput(event) {
+            if (!isGameRunning) return;
+            
+            if (event.key === 'Enter') {
+                const input = stationInput.value.trim();
+                stationInput.value = '';
+
+                if (input === '') {
+                    messageDisplay.textContent = '역 이름을 입력해주세요.';
+                    return;
+                }
+                
+                if (stations.includes(input) && !usedStations.has(input)) {
+                    score++;
+                    usedStations.add(input);
+                    scoreDisplay.textContent = `점수: ${score}`;
+                    messageDisplay.textContent = `${input} (O) 정답! 다음 역을 입력하세요.`;
+                } else if (usedStations.has(input)) {
+                    messageDisplay.textContent = `(X) ${input}은(는) 이미 입력했습니다.`;
+                } else {
+                    messageDisplay.textContent = `(X) ${input}은(는) 목록에 없는 역 이름입니다.`;
+                }
+            }
+        }
+
+        // --- 7. 이벤트 리스너 등록 및 초기화 ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        stationInput.addEventListener('keydown', checkInput);
+        saveNicknameButton.addEventListener('click', saveNickname);
+
+        window.onload = () => {
+             displayRanking(); // 초기 랭킹 표시
+             userInfoDisplay.textContent = '게임을 시작하려면 Google 로그인이 필요합니다.';
+        };
+
+    </script>
+</body>
+</html>
+             userInfoDisplay.textContent = '로그인해주세요.';
+             loginPrompt.style.display = 'block';
+             startButton.style.display = 'none';
+        };
+
+    </script>
+</body>
+</html>
